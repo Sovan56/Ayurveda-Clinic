@@ -13,12 +13,25 @@ app.use(express.json());
 // Email configuration
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '465'),
-  secure: process.env.SMTP_SECURE === 'true',
+  port: Number(process.env.SMTP_PORT) || 465,
+  secure: process.env.SMTP_SECURE !== 'false', // Default to true for port 465
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  // Add timeout and retry logic
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+});
+
+// Verify transporter on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP Connection Error:', error);
+  } else {
+    console.log('SMTP Server is ready to take our messages');
+  }
 });
 
 const emailStyle = `
@@ -208,12 +221,19 @@ app.post("/api/book", async (req, res) => {
   };
 
   try {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      throw new Error("SMTP credentials are not configured in environment variables.");
+    }
     await transporter.sendMail(adminMailOptions);
     await transporter.sendMail(userMailOptions);
     res.status(200).json({ message: "Booking request sent successfully" });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error sending email:", error);
-    res.status(500).json({ error: "Failed to send booking request" });
+    res.status(500).json({ 
+      error: "Failed to send booking request", 
+      details: error.message,
+      code: error.code
+    });
   }
 });
 
@@ -357,12 +377,19 @@ app.post("/api/contact", async (req, res) => {
   };
 
   try {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      throw new Error("SMTP credentials are not configured in environment variables.");
+    }
     await transporter.sendMail(adminMailOptions);
     await transporter.sendMail(userMailOptions);
     res.status(200).json({ message: "Message sent successfully" });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error sending email:", error);
-    res.status(500).json({ error: "Failed to send message" });
+    res.status(500).json({ 
+      error: "Failed to send message", 
+      details: error.message,
+      code: error.code
+    });
   }
 });
 
